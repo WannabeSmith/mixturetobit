@@ -1,11 +1,13 @@
 Package: mixturetobit
 Type: Package
-Title: What the Package Does (Title Case)
+Title: Estimate Tobit Mixtures Using the E-M Algorithm 
 Version: 0.1.0
-Author: Who wrote it
-Maintainer: The package maintainer <yourself@somewhere.net>
-Description: More about what it does (maybe more than one line)
-    Use four spaces when indenting paragraphs within the Description.
-License: What license is it under?
+Authors@R: c(person("Ian", "Waudby-Smith", email = "ianws@cmu.edu", role = c("aut", "cre")), person("Eleanor", "Pullenayegum", email = "eleanor.pullenayegum@sickkids.ca", role = "aut"))
+Maintainer: Ian Waudby-Smith <ianws@cmu.edu>
+Description: Obtain maximum-likelihood estimates of tobit regression parameters using the expectation-maximization algorithm.
+Imports:
+    survival
+License: MIT + file LICENSE 
 Encoding: UTF-8
 LazyData: true
+RoxygenNote: 6.1.1

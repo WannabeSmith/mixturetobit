@@ -199,15 +199,17 @@ mixturetobit <- function(formula, data, K = 2, start.beta = NULL,
             theta.lower = theta.lower, theta.upper = theta.upper, method = method, tol = tol)
 }
 
-formula <- tto ~ mo + sc + ua + pd + ad
-theta.lower <- c(rep(-3, 2 * 21), rep(1e-16, 2))
-theta.upper <- c(rep(3, 2 * 21), rep(5, 2))
+# Incorporate the following as an example later
 
-
-# start.beta <- list(beta.tto.true[[1]] + 0.2, beta.tto.true[[2]] - 0.2)
-# start.sigma <- sigma.tto + c(0.1, -0.1)
-
-start.beta <- NULL
-mixturetobit(formula, data = eqdata.tto, K = 2, start.beta = start.beta,
-             start.sigma = start.sigma, start.lambda = c(0.5, 0.5),
-             theta.lower = theta.lower, theta.upper = theta.upper, method = "L", tol = 0.0001)
+# formula <- tto ~ mo + sc + ua + pd + ad
+# theta.lower <- c(rep(-3, 2 * 21), rep(1e-16, 2))
+# theta.upper <- c(rep(3, 2 * 21), rep(5, 2))
+#
+#
+# # start.beta <- list(beta.tto.true[[1]] + 0.2, beta.tto.true[[2]] - 0.2)
+# # start.sigma <- sigma.tto + c(0.1, -0.1)
+#
+# start.beta <- NULL
+# mixturetobit(formula, data = eqdata.tto, K = 2, start.beta = start.beta,
+#              start.sigma = start.sigma, start.lambda = c(0.5, 0.5),
+#              theta.lower = theta.lower, theta.upper = theta.upper, method = "L", tol = 0.0001)
