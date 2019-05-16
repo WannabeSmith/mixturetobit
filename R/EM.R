@@ -53,28 +53,22 @@ vectorize.params <- function(beta, sigma)
   return(theta)
 }
 
-# Function to initialize J. J takes in theta and produces a negative log-likelihood.
-# init.J takes in K, delta, lambda.tplus1, y, and produces J.
-# J must be updated at each E-step but must be held constant for the M-step.
-# J is the negative of Q.
-init.J <- function(y, X, K, delta, lambda.tplus1)
+# Q function to be maximized
+Q <- function(theta, y, X, K, delta, lambda.tplus1)
 {
-  J <- function(theta)
-  {
-    devec <- devectorize.params(theta, K)
+  devec <- devectorize.params(theta, K)
 
-    beta <- devec$beta
-    sigma <- devec$sigma
+  beta <- devec$beta
+  sigma <- devec$sigma
 
-    xTbeta <- lapply(beta, function(b){
-      return(X %*% b)
-    })
+  xTbeta <- lapply(beta, function(b){
+    return(X %*% b)
+  })
 
-    return(-llMixtureTobit(y = y, K = K, w_ik = delta, lambda = lambda.tplus1, xTbeta = xTbeta, sigma = sigma))
-  }
-
-  return(J)
+  return(llMixtureTobit(y = y, K = K, w_ik = delta, lambda = lambda.tplus1, xTbeta = xTbeta, sigma = sigma))
 }
+
+Q <- cmpfun(Q)
 
 EM <- function(y, start.beta, start.sigma, start.lambda, K, ll.prev, X,
                theta.lower = NULL, theta.upper = NULL, method = "L-BFGS-B", tol = 1e-5)
@@ -109,10 +103,10 @@ EM <- function(y, start.beta, start.sigma, start.lambda, K, ll.prev, X,
   print("Trying...")
   print(theta.init)
 
-  # Create the Q function (the negative of the objective function)
+  # Create the objective function (the negative of the Q function)
   # Doing this inside the EM function so that we don't need
-  # to pass parameters that don't change ()
-  J <- init.J(y = y, X = X, K = K, delta = delta, lambda.tplus1 = lambda.tplus1)
+  # to pass parameters that don't change (X, K, delta, ...)
+  J <- function(theta){-Q(theta, y = y, X = X, K = K, delta = delta, lambda.tplus1 = lambda.tplus1)}
   J <- compiler::cmpfun(J) # Compile for speed
 
   if(is.null(theta.lower) && is.null(theta.upper))
@@ -190,7 +184,7 @@ mixturetobit <- function(formula, data, K = 2, start.beta = NULL,
       return(rnorm(n = d, mean = naive.beta, sd = mean(abs(naive.beta)))) # Assign some random starting points
     })
 
-    start.sigma <- rep(naive.model$scale, K) # Give same sigma to each group
+    start.sigma <- rep(naive.model$scale, K)/K # Give same sigma to each group
   }
 
   MLE <- EM(y = y, start.beta = start.beta, start.sigma = start.sigma,
@@ -200,16 +194,16 @@ mixturetobit <- function(formula, data, K = 2, start.beta = NULL,
 
 # Incorporate the following as an example later
 
-# K=3
-# formula <- tto ~ mo + sc + ua + pd + ad
-# theta.lower <- c(rep(-3, K * 21), rep(1e-16, K))
-# theta.upper <- c(rep(3, K * 21), rep(5, K))
-# start.lambda <- rep(1/K, K)
-#
-# # start.beta <- list(beta.tto.true[[1]] + 0.2, beta.tto.true[[2]] - 0.2)
-# # start.sigma <- sigma.tto + c(0.1, -0.1)
-#
-# start.beta <- NULL
-# mixturetobit(formula, data = eqdata.tto, K = K, start.beta = start.beta,
-#              start.sigma = start.sigma, start.lambda = start.lambda,
-#              theta.lower = theta.lower, theta.upper = theta.upper, method = "L-BFGS-B", tol = 0.0001)
+K=2
+formula <- tto ~ mo + sc + ua + pd + ad
+theta.lower <- c(rep(-3, K * 21), rep(1e-16, K))
+theta.upper <- c(rep(3, K * 21), rep(5, K))
+start.lambda <- rep(1/K, K)
+
+# start.beta <- list(beta.tto.true[[1]] + 0.2, beta.tto.true[[2]] - 0.2)
+# start.sigma <- sigma.tto + c(0.1, -0.1)
+
+start.beta <- NULL
+mixturetobit(formula, data = eqdata.tto, K = K, start.beta = start.beta,
+             start.sigma = start.sigma, start.lambda = start.lambda,
+             theta.lower = theta.lower, theta.upper = theta.upper, method = "L-BFGS-B", tol = 1e-8)
