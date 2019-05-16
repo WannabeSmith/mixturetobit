@@ -274,11 +274,13 @@ theta.lower <- c(rep(-3, 1 * 21), rep(1e-16, 1))
 theta.upper <- c(rep(3, 1 * 21), rep(5, 1))
 start.lambda <- rep(1/K, K)
 
-start.beta <- list(beta.tto.true[[1]] + 0.2, beta.tto.true[[2]] - 0.2)
-start.sigma <- sigma.tto + c(0.1, -0.1)
+# start.beta <- list(beta.tto.true[[1]] + 0.2, beta.tto.true[[2]] - 0.2)
+# start.sigma <- sigma.tto + c(0.1, -0.1)
 
 # start.beta <- beta.tto.true
 # start.sigma <- sigma.tto
+set.seed(75)
+start.beta <- NULL
 system.time(MLE.KSO <- mixturetobit(formula, data = eqdata.tto, K = K, start.beta = start.beta,
                     start.sigma = start.sigma, start.lambda = start.lambda,
                     theta.lower = theta.lower, theta.upper = theta.upper, method = "L-BFGS-B", tol = 1e-8))
