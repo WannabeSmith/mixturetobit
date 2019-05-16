@@ -28,31 +28,6 @@ llMixtureTobit <- function(y, K, w_ik, lambda, xTbeta, sigma)
   return(ll)
 }
 
-devectorize.params <- function(theta, K)
-{
-  # length(theta) - K had better be divisible by K
-  stopifnot((length(theta) - K) %% K == 0)
-
-  # dimension of beta
-  d <- (length(theta) - K) / K
-
-  theta.split <- split(theta, ceiling(seq_along(theta)/d))
-
-  # The last list will contain our sigmas
-  beta <- theta.split[-(K + 1)]
-  names(beta) <- NULL
-  sigma <- theta.split[K + 1][[1]]
-
-  return(list("beta" = beta,
-              "sigma" = sigma))
-}
-
-vectorize.params <- function(beta, sigma)
-{
-  theta <- c(do.call(c, beta), sigma)
-  return(theta)
-}
-
 prep.theta.optim <- function(beta, sigma, K)
 {
   theta.init <- lapply(1:K, function(k){
@@ -93,22 +68,7 @@ Q_k <- function(theta_k, y, X, delta_k, lambda.tplus1_k)
   return(ll)
 }
 
-# Q function to be maximized
-Q <- function(theta, y, X, K, delta, lambda.tplus1)
-{
-  devec <- devectorize.params(theta, K)
-
-  beta <- devec$beta
-  sigma <- devec$sigma
-
-  xTbeta <- lapply(beta, function(b){
-    return(X %*% b)
-  })
-
-  return(llMixtureTobit(y = y, K = K, w_ik = delta, lambda = lambda.tplus1, xTbeta = xTbeta, sigma = sigma))
-}
-
-Q <- cmpfun(Q)
+Q_k <- cmpfun(Q_k)
 
 EM <- function(y, start.beta, start.sigma, start.lambda, K, ll.prev, X,
                theta.lower = NULL, theta.upper = NULL, method = "L-BFGS-B", tol = 1e-5)
@@ -267,20 +227,20 @@ mixturetobit <- function(formula, data, K = 2, start.beta = NULL,
 }
 
 # Incorporate the following as an example later
-
-K=2
-formula <- tto ~ mo + sc + ua + pd + ad
-theta.lower <- c(rep(-1, 1 * 21), rep(1e-16, 1))
-theta.upper <- c(rep(1, 1 * 21), rep(2, 1))
-start.lambda <- rep(1/K, K)
-
-# start.beta <- list(beta.tto.true[[1]] + 0.2, beta.tto.true[[2]] - 0.2)
-# start.sigma <- sigma.tto + c(0.1, -0.1)
-
-# start.beta <- beta.tto.true
-# start.sigma <- sigma.tto
-set.seed(75)
-start.beta <- NULL
-system.time(MLE.KSO <- mixturetobit(formula, data = eqdata.tto, K = K, start.beta = start.beta,
-                    start.sigma = start.sigma, start.lambda = start.lambda,
-                    theta.lower = theta.lower, theta.upper = theta.upper, method = "L-BFGS-B", tol = 1e-8))
+#
+# K=2
+# formula <- tto ~ mo + sc + ua + pd + ad
+# theta.lower <- c(rep(-1, 1 * 21), rep(1e-16, 1))
+# theta.upper <- c(rep(1, 1 * 21), rep(2, 1))
+# start.lambda <- rep(1/K, K)
+#
+# # start.beta <- list(beta.tto.true[[1]] + 0.2, beta.tto.true[[2]] - 0.2)
+# # start.sigma <- sigma.tto + c(0.1, -0.1)
+#
+# # start.beta <- beta.tto.true
+# # start.sigma <- sigma.tto
+# set.seed(75)
+# start.beta <- NULL
+# system.time(MLE.KSO <- mixturetobit(formula, data = eqdata.tto, K = K, start.beta = start.beta,
+#                     start.sigma = start.sigma, start.lambda = start.lambda,
+#                     theta.lower = theta.lower, theta.upper = theta.upper, method = "L-BFGS-B", tol = 1e-8))
