@@ -145,8 +145,8 @@ EM <- function(y, start.beta, start.sigma, start.lambda, K, ll.prev, X,
     return(list(beta = beta.tplus1,
                 sigma = sigma.tplus1,
                 lambda = lambda.tplus1,
-                w_ik = w_ik, ll = ll,
-                delta = delta))
+                delta = delta,
+                ll = ll))
   } else
   {
     return(EM(y = y, start.beta = beta.tplus1, start.sigma = sigma.tplus1,
@@ -156,6 +156,32 @@ EM <- function(y, start.beta, start.sigma, start.lambda, K, ll.prev, X,
   }
 }
 
+#' Perform maximum-likelihood estimation for a mixture of tobit regression models
+#'
+#' This function performs maximum-likelihood estimation via the E-M algorithm to obtain
+#' estimates of regression coefficients in a mixture of tobit regression models.
+#'
+#' @importFrom stats model.matrix dnorm pnorm rnorm optim
+#' @importFrom survival survreg
+#' @importFrom compiler cmpfun
+#' @param formula a regression formula describing the relationship between the response and the covariates
+#' @param data the data.frame containing the responses and covariates
+#' @param K the number of mixtures (or latent classes)
+#' @param start.beta a list of length K of starting values for each mixture's beta coefficients
+#' @param start.sigma a vector of length K of starting values for each mixture's sigma value
+#' @param start.lambda a vector of length K of starting values for the mixing proportions
+#' @param left a number specifying where left-censoring occurred
+#' @param tol a number specifying the tolerance used to determine convergence
+#' @param theta.lower a numeric vector of lower bounds for the theta parameters
+#' @param theta.upper a numeric vector of upper bounds for the theta parameters
+#' @param method a string specifying the optimization routine to be used by optim
+#' @return a list containing the following elements:\cr
+#' \item{beta}{a list containing the estimated regression coefficients}
+#' \item{sigma}{a vector containing the estimated values of sigma}
+#' \item{lambda}{a vector containing the estimated mixing proportions}
+#' \item{delta}{a list of length K containing the estimated class membership probabilities for each observation}
+#' \item{ll}{the log-likelihood function evaluated at the MLE}
+#' @export
 mixturetobit <- function(formula, data, K = 2, start.beta = NULL,
                          start.sigma = NULL, start.lambda = NULL,
                          left = -1, tol = 1e-5, theta.lower = NULL,
@@ -181,29 +207,32 @@ mixturetobit <- function(formula, data, K = 2, start.beta = NULL,
     names(naive.beta) <- colnames(X)
 
     start.beta <- lapply(start.beta, function(x){
-      return(rnorm(n = d, mean = naive.beta, sd = mean(abs(naive.beta)))) # Assign some random starting points
+      return(rnorm(n = d, mean = naive.beta, sd = mean(abs(naive.beta))/2)) # Assign some random starting points
     })
 
-    start.sigma <- rep(naive.model$scale, K)/K # Give same sigma to each group
+    start.sigma <- rep(naive.model$scale, K)/(2*K) # Give same sigma to each group
   }
 
   MLE <- EM(y = y, start.beta = start.beta, start.sigma = start.sigma,
             start.lambda = start.lambda, K = K, ll.prev = Inf, X = X,
             theta.lower = theta.lower, theta.upper = theta.upper, method = method, tol = tol)
+
+  return(MLE)
 }
 
 # Incorporate the following as an example later
 
-K=2
-formula <- tto ~ mo + sc + ua + pd + ad
-theta.lower <- c(rep(-3, K * 21), rep(1e-16, K))
-theta.upper <- c(rep(3, K * 21), rep(5, K))
-start.lambda <- rep(1/K, K)
-
-# start.beta <- list(beta.tto.true[[1]] + 0.2, beta.tto.true[[2]] - 0.2)
-# start.sigma <- sigma.tto + c(0.1, -0.1)
-
-start.beta <- NULL
-mixturetobit(formula, data = eqdata.tto, K = K, start.beta = start.beta,
-             start.sigma = start.sigma, start.lambda = start.lambda,
-             theta.lower = theta.lower, theta.upper = theta.upper, method = "L-BFGS-B", tol = 1e-8)
+# K=2
+# formula <- tto ~ mo + sc + ua + pd + ad
+# theta.lower <- c(rep(-3, K * 21), rep(1e-16, K))
+# theta.upper <- c(rep(3, K * 21), rep(5, K))
+# start.lambda <- rep(1/K, K)
+#
+# # start.beta <- list(beta.tto.true[[1]] + 0.2, beta.tto.true[[2]] - 0.2)
+# # start.sigma <- sigma.tto + c(0.1, -0.1)
+#
+# start.beta <- beta.tto.true
+# start.sigma <- sigma.tto
+# MLE <- mixturetobit(formula, data = eqdata.tto, K = K, start.beta = start.beta,
+#                     start.sigma = start.sigma, start.lambda = start.lambda,
+#                     theta.lower = theta.lower, theta.upper = theta.upper, method = "L-BFGS-B", tol = 1e-8)
