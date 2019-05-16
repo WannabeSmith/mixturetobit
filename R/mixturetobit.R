@@ -270,8 +270,8 @@ mixturetobit <- function(formula, data, K = 2, start.beta = NULL,
 
 K=2
 formula <- tto ~ mo + sc + ua + pd + ad
-theta.lower <- c(rep(-3, 1 * 21), rep(1e-16, 1))
-theta.upper <- c(rep(3, 1 * 21), rep(5, 1))
+theta.lower <- c(rep(-1, 1 * 21), rep(1e-16, 1))
+theta.upper <- c(rep(1, 1 * 21), rep(2, 1))
 start.lambda <- rep(1/K, K)
 
 # start.beta <- list(beta.tto.true[[1]] + 0.2, beta.tto.true[[2]] - 0.2)
