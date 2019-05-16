@@ -117,7 +117,6 @@ EM <- function(y, start.beta, start.sigma, start.lambda, K, ll.prev, X,
     optimum <- optim(theta.init, J, method = "Nelder-Mead")
   } else
   {
-    print("L-BFGS-B")
     optima <- lapply(1:K, function(k){
       optim(theta.init[[k]], Js[[k]], method = "L-BFGS-B",
             lower = theta.lower, upper = theta.upper)$par
@@ -230,17 +229,16 @@ mixturetobit <- function(formula, data, K = 2, start.beta = NULL,
 #
 # K=2
 # formula <- tto ~ mo + sc + ua + pd + ad
-# theta.lower <- c(rep(-1, 1 * 21), rep(1e-16, 1))
-# theta.upper <- c(rep(1, 1 * 21), rep(2, 1))
+# theta.lower <- c(rep(-5, 1 * 21), rep(1e-16, 1))
+# theta.upper <- c(rep(5, 1 * 21), rep(10, 1))
 # start.lambda <- rep(1/K, K)
 #
-# # start.beta <- list(beta.tto.true[[1]] + 0.2, beta.tto.true[[2]] - 0.2)
-# # start.sigma <- sigma.tto + c(0.1, -0.1)
+# start.beta <- list(beta.tto.true[[1]] + 0.2, beta.tto.true[[2]] - 0.2)
+# start.sigma <- sigma.tto + c(0.1, -0.1)
 #
 # # start.beta <- beta.tto.true
 # # start.sigma <- sigma.tto
 # set.seed(75)
-# start.beta <- NULL
 # system.time(MLE.KSO <- mixturetobit(formula, data = eqdata.tto, K = K, start.beta = start.beta,
 #                     start.sigma = start.sigma, start.lambda = start.lambda,
 #                     theta.lower = theta.lower, theta.upper = theta.upper, method = "L-BFGS-B", tol = 1e-8))
