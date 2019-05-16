@@ -89,15 +89,14 @@ EM <- function(y, start.beta, start.sigma, start.lambda, K, ll.prev, X,
   })
 
   # add these vectors together element-wise to get a single vector of size nrow(X)
-  # note: the `+` function is simply the + operator.
-  f.y.theta <- do.call(`+`, f.y.theta.comps)
+  f.y.theta <- rowSums(do.call(cbind, f.y.theta.comps))
 
   # Estimated probabilities of each observation belonging to group k
   delta <- lapply(1:K, function(k){
     start.lambda[k] * dtobit(y = y, xTbeta[[k]], start.sigma[[k]]) / f.y.theta
   })
 
-  deltasum <- as.vector(do.call(`+`, delta))
+  deltasum <- rowSums(do.call(cbind, delta))
   # Have to use all.equal because, amazingly, == does not recognize
   # min(deltasum) as 1 even though it prints exactly 1.
   # More here: https://www.reddit.com/r/rstats/comments/34p0bm/logical_operators_not_working_as_expected_r_says/
@@ -201,15 +200,16 @@ mixturetobit <- function(formula, data, K = 2, start.beta = NULL,
 
 # Incorporate the following as an example later
 
+# K=3
 # formula <- tto ~ mo + sc + ua + pd + ad
-# theta.lower <- c(rep(-3, 2 * 21), rep(1e-16, 2))
-# theta.upper <- c(rep(3, 2 * 21), rep(5, 2))
-#
+# theta.lower <- c(rep(-3, K * 21), rep(1e-16, K))
+# theta.upper <- c(rep(3, K * 21), rep(5, K))
+# start.lambda <- rep(1/K, K)
 #
 # # start.beta <- list(beta.tto.true[[1]] + 0.2, beta.tto.true[[2]] - 0.2)
 # # start.sigma <- sigma.tto + c(0.1, -0.1)
 #
 # start.beta <- NULL
-# mixturetobit(formula, data = eqdata.tto, K = 2, start.beta = start.beta,
-#              start.sigma = start.sigma, start.lambda = c(0.5, 0.5),
-#              theta.lower = theta.lower, theta.upper = theta.upper, method = "L", tol = 0.0001)
+# mixturetobit(formula, data = eqdata.tto, K = K, start.beta = start.beta,
+#              start.sigma = start.sigma, start.lambda = start.lambda,
+#              theta.lower = theta.lower, theta.upper = theta.upper, method = "L-BFGS-B", tol = 0.0001)
