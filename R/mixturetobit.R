@@ -70,7 +70,7 @@ Q_k <- function(theta_k, y, X, delta_k, lambda.tplus1_k)
 
 Q_k <- cmpfun(Q_k)
 
-EM <- function(y, start.beta, start.sigma, start.lambda, K, ll.prev, X,
+EM <- function(y, start.beta, start.sigma, start.lambda, K, ll.prev, X, id.vec = NULL,
                theta.lower = NULL, theta.upper = NULL, method = "L-BFGS-B", tol = 1e-5)
 {
   xTbeta <- lapply(start.beta, function(b){
@@ -79,7 +79,12 @@ EM <- function(y, start.beta, start.sigma, start.lambda, K, ll.prev, X,
 
   # Components of f(y | theta). That is, f(y | theta) = \sum_k^K[\lambda_k \times f_k(y | theta)]
   f.y.theta.comps <- lapply(1:K, function(k){
-    return(start.lambda[k] * dtobit(y, xTbeta = xTbeta[[k]], sigma = start.sigma[[k]]))
+    f.y.theta_k <- data.table(aggregate(dtobit(y, xTbeta = xTbeta[[k]], sigma = start.sigma[[k]]),
+                             by = list(id.vec), function(x){prod(x) * start.lambda[k]}))
+    names(f.y.theta_k) <- c("id", "f.y.theta_k")
+
+    merged <- merge(data.table("id" = id.vec), f.y.theta_k, by = "id")
+    return(merged$f.y.theta_k)
   })
 
   # add these vectors together element-wise to get a single vector of size nrow(X)
@@ -87,7 +92,7 @@ EM <- function(y, start.beta, start.sigma, start.lambda, K, ll.prev, X,
 
   # Estimated probabilities of each observation belonging to group k
   delta <- lapply(1:K, function(k){
-    start.lambda[k] * dtobit(y = y, xTbeta[[k]], start.sigma[[k]]) / f.y.theta
+    f.y.theta.comps[[k]] / f.y.theta
   })
 
   deltasum <- rowSums(do.call(cbind, delta))
@@ -155,7 +160,7 @@ EM <- function(y, start.beta, start.sigma, start.lambda, K, ll.prev, X,
   } else
   {
     return(EM(y = y, start.beta = beta.tplus1, start.sigma = sigma.tplus1,
-              start.lambda = lambda.tplus1, K = K, ll.prev = ll, X = X,
+              start.lambda = lambda.tplus1, K = K, id.vec = id.vec, ll.prev = ll, X = X,
               method = method, theta.lower = theta.lower,
               theta.upper = theta.upper, tol = tol))
   }
@@ -188,17 +193,19 @@ EM <- function(y, start.beta, start.sigma, start.lambda, K, ll.prev, X,
 #' \item{ll}{the log-likelihood function evaluated at the MLE}
 #' @export
 mixturetobit <- function(formula, data, K = 2, start.beta = NULL,
-                         start.sigma = NULL, start.lambda = NULL,
+                         start.sigma = NULL, start.lambda = NULL, id = NULL,
                          left = -1, tol = 1e-5, theta.lower = NULL,
                          theta.upper = NULL, method = "L-BFGS-B")
 {
+  data <- data.table(data)
+
   stopifnot(K >= 2)
 
   X <- model.matrix(formula, data = data)
   d <- ncol(X) # dimension of beta
 
   response.varname <- all.vars(formula)[1]
-  y <- data[, response.varname]
+  y <- data[[response.varname]]
 
   if(is.null(start.beta) || is.null(start.sigma) || is.null(start.lambda))
   {
@@ -219,7 +226,7 @@ mixturetobit <- function(formula, data, K = 2, start.beta = NULL,
   }
 
   MLE <- EM(y = y, start.beta = start.beta, start.sigma = start.sigma,
-            start.lambda = start.lambda, K = K, ll.prev = Inf, X = X,
+            start.lambda = start.lambda, K = K, ll.prev = Inf, X = X, id.vec = data[[id]],
             theta.lower = theta.lower, theta.upper = theta.upper, method = method, tol = tol)
 
   return(MLE)
@@ -227,18 +234,18 @@ mixturetobit <- function(formula, data, K = 2, start.beta = NULL,
 
 # Incorporate the following as an example later
 #
-# K=2
+# K=3
 # formula <- tto ~ mo + sc + ua + pd + ad
-# theta.lower <- c(rep(-5, 1 * 21), rep(1e-16, 1))
-# theta.upper <- c(rep(5, 1 * 21), rep(10, 1))
+# theta.lower <- c(rep(-Inf, 1 * 21), rep(1e-16, 1))
+# theta.upper <- c(rep(Inf, 1 * 21), rep(Inf, 1))
 # start.lambda <- rep(1/K, K)
 #
-# start.beta <- list(beta.tto.true[[1]] + 0.2, beta.tto.true[[2]] - 0.2)
-# start.sigma <- sigma.tto + c(0.1, -0.1)
+# start.beta <- list(beta.tto.true[[1]] + 1, beta.tto.true[[2]], beta.tto.true[[3]])
+# start.sigma <- sigma.tto + c(0.1, -0.1, 0)
 #
 # # start.beta <- beta.tto.true
 # # start.sigma <- sigma.tto
 # set.seed(75)
-# system.time(MLE.KSO <- mixturetobit(formula, data = eqdata.tto, K = K, start.beta = start.beta,
-#                     start.sigma = start.sigma, start.lambda = start.lambda,
+# system.time(MLE.KSO <- mixturetobit(formula, data = data, K = K, start.beta = start.beta,
+#                     start.sigma = start.sigma, start.lambda = start.lambda, id = "SubjectID",
 #                     theta.lower = theta.lower, theta.upper = theta.upper, method = "L-BFGS-B", tol = 1e-8))
