@@ -225,8 +225,10 @@ mixturetobit <- function(formula, data, K = 2, start.beta = NULL,
     start.sigma <- rep(naive.model$scale, K)/(2*K) # Give same sigma to each group
   }
 
+  id.vec <- data[[id]]
+
   MLE <- EM(y = y, start.beta = start.beta, start.sigma = start.sigma,
-            start.lambda = start.lambda, K = K, ll.prev = Inf, X = X, id.vec = data[[id]],
+            start.lambda = start.lambda, K = K, ll.prev = Inf, X = X, id.vec = id.vec,
             theta.lower = theta.lower, theta.upper = theta.upper, method = method, tol = tol)
 
   return(MLE)
