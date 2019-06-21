@@ -117,15 +117,25 @@ EM <- function(y, start.beta, start.sigma, start.lambda, K, ll.prev, X, id.vec =
     return(cmpfun(J))
   })
 
-  if(is.null(theta.lower) && is.null(theta.upper))
-  {
-    optimum <- optim(theta.init, J, method = "Nelder-Mead")
-  } else
+  if(method == "Nelder-Mead")
   {
     optima <- lapply(1:K, function(k){
-      optim(theta.init[[k]], Js[[k]], method = "L-BFGS-B",
-            lower = theta.lower, upper = theta.upper)$par
+      optim(theta.init[[k]], Js[[k]], method = "Nelder-Mead")$par
     })
+  } else if(method == "L-BFGS-B")
+  {
+    if(!is.null(theta.lower) && !is.null(theta.upper))
+    {
+      optima <- lapply(1:K, function(k){
+        optim(theta.init[[k]], Js[[k]], method = "L-BFGS-B",
+              lower = theta.lower, upper = theta.upper)$par
+      })
+    } else
+    {
+      optima <- lapply(1:K, function(k){
+        optim(theta.init[[k]], Js[[k]], method = "L-BFGS-B")$par
+      })
+    }
   }
 
   params <- recover.params(optima, K = K)
@@ -219,10 +229,12 @@ mixturetobit <- function(formula, data, K = 2, start.beta = NULL,
     names(naive.beta) <- colnames(X)
 
     start.beta <- lapply(start.beta, function(x){
-      return(rnorm(n = d, mean = naive.beta, sd = mean(abs(naive.beta))/2)) # Assign some random starting points
+      return(rnorm(n = d, mean = naive.beta, sd = 0.5)) # Assign some random starting points
     })
 
     start.sigma <- rep(naive.model$scale, K)/(2*K) # Give same sigma to each group
+
+    start.lambda <- rep(1/K, K)
   }
 
   id.vec <- data[[id]]
