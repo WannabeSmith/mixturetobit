@@ -6,7 +6,8 @@ Authors@R: c(person("Ian", "Waudby-Smith", email = "ianws@cmu.edu", role = c("au
 Maintainer: Ian Waudby-Smith <ianws@cmu.edu>
 Description: Obtain maximum-likelihood estimates of tobit regression parameters using the expectation-maximization algorithm.
 Imports:
-    survival
+    survival,
+    data.table
 License: MIT + file LICENSE 
 Encoding: UTF-8
 LazyData: true

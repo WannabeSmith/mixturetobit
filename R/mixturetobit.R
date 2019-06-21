@@ -181,15 +181,17 @@ EM <- function(y, start.beta, start.sigma, start.lambda, K, ll.prev, X, id.vec =
 #' This function performs maximum-likelihood estimation via the E-M algorithm to obtain
 #' estimates of regression coefficients in a mixture of tobit regression models.
 #'
-#' @importFrom stats model.matrix dnorm pnorm rnorm optim
+#' @importFrom stats model.matrix dnorm pnorm rnorm optim aggregate
 #' @importFrom survival survreg
 #' @importFrom compiler cmpfun
+#' @importFrom data.table data.table
 #' @param formula a regression formula describing the relationship between the response and the covariates
 #' @param data the data.frame containing the responses and covariates
 #' @param K the number of mixtures (or latent classes)
 #' @param start.beta a list of length K of starting values for each mixture's beta coefficients
 #' @param start.sigma a vector of length K of starting values for each mixture's sigma value
 #' @param start.lambda a vector of length K of starting values for the mixing proportions
+#' @param id a string specifying the name of the column that identifies subjects
 #' @param left a number specifying where left-censoring occurred
 #' @param tol a number specifying the tolerance used to determine convergence
 #' @param theta.lower a numeric vector of lower bounds for the theta parameters
