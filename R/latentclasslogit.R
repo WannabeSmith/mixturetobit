@@ -32,25 +32,38 @@ Q_k <- function(beta_k, y, X, delta_k, lambda.tplus1_k)
 Q_k <- cmpfun(Q_k)
 
 EM <- function(y, start.beta, start.sigma, start.lambda, K, ll.prev, X, id.vec = NULL,
-               theta.lower = NULL, theta.upper = NULL, method = "L-BFGS-B", tol = 1e-5)
+               theta.lower = NULL, theta.upper = NULL, method = "L-BFGS-B", tol = 1e-5,
+               best.beta, best.lambda, best.ll)
 {
   xTbeta <- lapply(start.beta, function(b){
     return(X %*% b)
   })
 
+  # f_k(y | theta) computed for all subjects (not all observations. That is next)
+  f.y.theta.comps.subj <- lapply(1:K, function(k){
+    f.y.theta_k <- aggregate(dlogit(y, xTbeta = xTbeta[[k]], log = FALSE),
+                             by = list(id.vec),
+                             function(x){prod(x) * start.lambda[k]})
+    return(f.y.theta_k$x)
+  })
+
   # Components of f(y | theta). That is, f(y | theta) = \sum_k^K[\lambda_k \times f_k(y | theta)]
+  # This returns for all observations, not all subjects
   f.y.theta.comps <- lapply(1:K, function(k){
-    f.y.theta_k <- data.table(aggregate(dlogit(y, xTbeta = xTbeta[[k]], log = FALSE),
-                                               by = list(id.vec),
-                                               function(x){prod(x) * start.lambda[k]}))
-    names(f.y.theta_k) <- c("id", "f.y.theta_k")
+    f.y.theta_k <- data.table("f.y.theta_k" = f.y.theta.comps.subj[[k]])
+    f.y.theta_k$id <- unique(id.vec)
 
     merged <- merge(data.table("id" = id.vec), f.y.theta_k, by = "id")
     return(merged$f.y.theta_k)
   })
 
   # add these vectors together element-wise to get a single vector of size nrow(X)
+  f.y.theta.subj <- rowSums(do.call(cbind, f.y.theta.comps.subj))
   f.y.theta <- rowSums(do.call(cbind, f.y.theta.comps))
+
+  delta.subj <- lapply(1:K, function(k){
+    f.y.theta.comps.subj[[k]] / f.y.theta.subj
+  })
 
   # Estimated probabilities of each observation belonging to group k
   delta <- lapply(1:K, function(k){
@@ -63,12 +76,19 @@ EM <- function(y, start.beta, start.sigma, start.lambda, K, ll.prev, X, id.vec =
   # More here: https://www.reddit.com/r/rstats/comments/34p0bm/logical_operators_not_working_as_expected_r_says/
   stopifnot(all.equal(min(deltasum), 1) && all.equal(max(deltasum), 1))
 
+  start.params <- c(start.lambda, 1)
+
   lambda.tplus1 <- sapply(delta, mean)
 
   theta.init <- start.beta
 
-  print("Trying...")
+  print("Trying beta...")
   print(theta.init)
+
+  print("Previous lambda...")
+  print(start.lambda)
+
+  print(paste("Previous log-likelihood:", ll.prev))
 
   # Create the objective function (the negative of the Q function)
   # Doing this inside the EM function so that we don't need
@@ -79,39 +99,37 @@ EM <- function(y, start.beta, start.sigma, start.lambda, K, ll.prev, X, id.vec =
     return(cmpfun(J))
   })
 
-  if(is.null(theta.lower) && is.null(theta.upper))
-  {
-    optima <- lapply(1:K, function(k){
-      optim(theta.init[[k]], Js[[k]], method = "N")$par
-    })
-  } else
-  {
-    optima <- lapply(1:K, function(k){
-      optim(theta.init[[k]], Js[[k]], method = "L-BFGS-B",
-            lower = theta.lower, upper = theta.upper)$par
-    })
-  }
 
-  beta.tplus1 <- optima
+  optimal.params <- lapply(1:K, function(k){
+    optim(theta.init[[k]], Js[[k]], method = "Nelder-Mead")$par
+  })
+
+  optima <- lapply(1:K, function(k){
+    optim(theta.init[[k]], Js[[k]], method = "Nelder-Mead")$value
+  })
+
+  beta.tplus1 <- optimal.params
 
   xTbeta.tplus1 <- lapply(beta.tplus1, function(b){
     return(X %*% b)
   })
 
   # Get predicted latent class for each observation
-  pred.latent.class <- max.col(do.call(cbind, delta))
+  # pred.latent.class <- max.col(do.call(cbind, delta))
 
   # Create list of K vectors where the k'th vector is a vector of logicals
   # indicating class membership to latent class k. This is required for the
   # log-likelihood to be evaluated.
-  w_ik <- lapply(1:K, function(k){
-    return(pred.latent.class == k)
-  })
+  # w_ik <- lapply(1:K, function(k){
+  #   return(pred.latent.class == k)
+  # })
 
-  ll <- llMixtureLogit(y = y, K = K, w_ik = w_ik,
-                       lambda = lambda.tplus1,
-                       xTbeta = xTbeta.tplus1)
-  print(paste("log-likelihood:", ll))
+  ll <- -do.call(sum, optima)
+
+  if(ll < ll.prev)
+  {
+    warning("E-step did not increase log-likelihood!")
+  }
 
   if(abs(ll/ll.prev - 1) < tol)
   {
@@ -119,13 +137,14 @@ EM <- function(y, start.beta, start.sigma, start.lambda, K, ll.prev, X, id.vec =
     return(list(beta = beta.tplus1,
                 lambda = lambda.tplus1,
                 delta = delta,
-                ll = ll))
+                best.ll = best.ll))
   } else
   {
     return(EM(y = y, start.beta = beta.tplus1, start.lambda = lambda.tplus1,
               K = K, id.vec = id.vec, ll.prev = ll, X = X,
               method = method, theta.lower = theta.lower,
-              theta.upper = theta.upper, tol = tol))
+              theta.upper = theta.upper, tol = tol, best.beta = best.beta,
+              best.lambda = best.lambda, best.ll = best.ll))
   }
 }
 
@@ -188,8 +207,9 @@ latentclasslogit <- function(formula, data, K = 2, start.beta = NULL,
   id.vec <- data[[id]]
 
   MLE <- EM(y = y, start.beta = start.beta, start.lambda = start.lambda, K = K,
-            ll.prev = Inf, X = X, id.vec = id.vec,theta.lower = theta.lower,
-            theta.upper = theta.upper, method = method, tol = tol)
+            ll.prev = -Inf, X = X, id.vec = id.vec,theta.lower = theta.lower,
+            theta.upper = theta.upper, method = method, tol = tol, best.beta = start.beta,
+            best.lambda = start.lambda, best.ll = -Inf)
 
   return(MLE)
 }
