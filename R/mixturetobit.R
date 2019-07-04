@@ -194,9 +194,9 @@ EM <- function(y, start.beta, start.sigma, start.lambda, K, ll.prev, X, id.vec =
 #' @param id a string specifying the name of the column that identifies subjects
 #' @param left a number specifying where left-censoring occurred
 #' @param tol a number specifying the tolerance used to determine convergence
-#' @param theta.lower a numeric vector of lower bounds for the theta parameters
-#' @param theta.upper a numeric vector of upper bounds for the theta parameters
-#' @param method a string specifying the optimization routine to be used by optim
+#' @param theta.lower a numeric vector of lower bounds for the theta parameters (if using L-BFGS-B)
+#' @param theta.upper a numeric vector of upper bounds for the theta parameters (if using L-BFGS-B)
+#' @param method a string specifying the optimization routine to be used by optim. "L-BFGS-B", "Nelder-Mead", and "Hybrid" are currently supported. The hybrid optimization starts with the less sensitive but less precise Nelder-Mead and hones in with the more sensitive and precise L-BFGS-B
 #' @return a list containing the following elements:\cr
 #' \item{beta}{a list containing the estimated regression coefficients}
 #' \item{sigma}{a vector containing the estimated values of sigma}
