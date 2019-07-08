@@ -80,6 +80,11 @@ EM <- function(y, start.beta, start.sigma, start.lambda, K, ll.prev, X, id.vec =
 
   lambda.tplus1 <- sapply(delta, mean)
 
+  if(min(lambda.tplus1) < 0.01)
+  {
+    stop("Smallest lambda is less than 1%, likely indicating convergence issues")
+  }
+
   theta.init <- start.beta
 
   print("Trying beta...")
