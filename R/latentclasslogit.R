@@ -40,12 +40,12 @@ EM.logit <- function(y, start.beta, start.sigma, start.lambda, K, ll.prev, X, id
   })
 
   # f_k(y | theta) computed for all subjects (not all observations. That is next)
-  # f.y.theta.comps.subj <- lapply(1:K, function(k){
-  #   f.y.theta_k <- aggregate(dlogit(y, xTbeta = xTbeta[[k]], log = FALSE),
-  #                            by = list(id.vec),
-  #                            function(x){prod(x) * start.lambda[k]})
-  #   return(f.y.theta_k$x)
-  # })
+  f.y.theta.comps.subj <- lapply(1:K, function(k){
+    f.y.theta_k <- aggregate(dlogit(y, xTbeta = xTbeta[[k]], log = FALSE),
+                             by = list(id.vec),
+                             function(x){prod(x) * start.lambda[k]})
+    return(f.y.theta_k$x)
+  })
 
   # Components of f(y | theta). That is, f(y | theta) = \sum_k^K[\lambda_k \times f_k(y | theta)]
   # This returns for all observations, not all subjects
