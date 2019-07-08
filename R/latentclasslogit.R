@@ -19,7 +19,7 @@ llMixtureLogit <- function(y, K, w_ik, lambda, xTbeta)
   return(ll)
 }
 
-Q_k <- function(beta_k, y, X, delta_k, lambda.tplus1_k)
+Q_k.logit <- function(beta_k, y, X, delta_k, lambda.tplus1_k)
 {
   xTbeta_k <- X %*% beta_k
 
@@ -29,28 +29,41 @@ Q_k <- function(beta_k, y, X, delta_k, lambda.tplus1_k)
   return(ll)
 }
 
-Q_k <- cmpfun(Q_k)
+Q_k.logit <- cmpfun(Q_k.logit)
 
-EM <- function(y, start.beta, start.sigma, start.lambda, K, ll.prev, X, id.vec = NULL,
-               theta.lower = NULL, theta.upper = NULL, method = "L-BFGS-B", tol = 1e-5)
+EM.logit <- function(y, start.beta, start.sigma, start.lambda, K, ll.prev, X, id.vec = NULL,
+               theta.lower = NULL, theta.upper = NULL, method = "L-BFGS-B", tol = 1e-5,
+               best.beta, best.lambda, best.ll)
 {
   xTbeta <- lapply(start.beta, function(b){
     return(X %*% b)
   })
 
+  # f_k(y | theta) computed for all subjects (not all observations. That is next)
+  f.y.theta.comps.subj <- lapply(1:K, function(k){
+    f.y.theta_k <- aggregate(dlogit(y, xTbeta = xTbeta[[k]], log = FALSE),
+                             by = list(id.vec),
+                             function(x){prod(x) * start.lambda[k]})
+    return(f.y.theta_k$x)
+  })
+
   # Components of f(y | theta). That is, f(y | theta) = \sum_k^K[\lambda_k \times f_k(y | theta)]
+  # This returns for all observations, not all subjects
   f.y.theta.comps <- lapply(1:K, function(k){
-    f.y.theta_k <- data.table(aggregate(dlogit(y, xTbeta = xTbeta[[k]], log = FALSE),
-                                               by = list(id.vec),
-                                               function(x){prod(x) * start.lambda[k]}))
-    names(f.y.theta_k) <- c("id", "f.y.theta_k")
+    f.y.theta_k <- data.table("f.y.theta_k" = f.y.theta.comps.subj[[k]])
+    f.y.theta_k$id <- unique(id.vec)
 
     merged <- merge(data.table("id" = id.vec), f.y.theta_k, by = "id")
     return(merged$f.y.theta_k)
   })
 
   # add these vectors together element-wise to get a single vector of size nrow(X)
+  f.y.theta.subj <- rowSums(do.call(cbind, f.y.theta.comps.subj))
   f.y.theta <- rowSums(do.call(cbind, f.y.theta.comps))
+
+  delta.subj <- lapply(1:K, function(k){
+    f.y.theta.comps.subj[[k]] / f.y.theta.subj
+  })
 
   # Estimated probabilities of each observation belonging to group k
   delta <- lapply(1:K, function(k){
@@ -63,69 +76,87 @@ EM <- function(y, start.beta, start.sigma, start.lambda, K, ll.prev, X, id.vec =
   # More here: https://www.reddit.com/r/rstats/comments/34p0bm/logical_operators_not_working_as_expected_r_says/
   stopifnot(all.equal(min(deltasum), 1) && all.equal(max(deltasum), 1))
 
+  start.params <- c(start.lambda, 1)
+
   lambda.tplus1 <- sapply(delta, mean)
+
+  if(min(lambda.tplus1) < 0.01)
+  {
+    stop("Smallest lambda is less than 1%, likely indicating convergence issues")
+  }
 
   theta.init <- start.beta
 
-  print("Trying...")
+  print("Trying beta...")
   print(theta.init)
+
+  print("Previous lambda...")
+  print(start.lambda)
+
+  print(paste("Previous log-likelihood:", ll.prev))
 
   # Create the objective function (the negative of the Q function)
   # Doing this inside the EM function so that we don't need
   # to pass parameters that don't change (X, K, delta, ...)
   Js <- lapply(1:K, function(k){
-    J <- function(theta_k){-Q_k(beta_k = theta_k, y = y, X = X,
+    J <- function(theta_k){-Q_k.logit(beta_k = theta_k, y = y, X = X,
                                 delta_k = delta[[k]], lambda.tplus1_k = lambda.tplus1[k])}
     return(cmpfun(J))
   })
 
-  if(is.null(theta.lower) && is.null(theta.upper))
-  {
-    optima <- lapply(1:K, function(k){
-      optim(theta.init[[k]], Js[[k]], method = "N")$par
-    })
-  } else
-  {
-    optima <- lapply(1:K, function(k){
-      optim(theta.init[[k]], Js[[k]], method = "L-BFGS-B",
-            lower = theta.lower, upper = theta.upper)$par
-    })
-  }
 
-  beta.tplus1 <- optima
+  optimal.params <- lapply(1:K, function(k){
+    optim(theta.init[[k]], Js[[k]], method = "Nelder-Mead")$par
+  })
+
+  optima <- lapply(1:K, function(k){
+    optim(theta.init[[k]], Js[[k]], method = "Nelder-Mead")$value
+  })
+
+  beta.tplus1 <- optimal.params
 
   xTbeta.tplus1 <- lapply(beta.tplus1, function(b){
     return(X %*% b)
   })
 
   # Get predicted latent class for each observation
-  pred.latent.class <- max.col(do.call(cbind, delta))
+  # pred.latent.class <- max.col(do.call(cbind, delta))
 
   # Create list of K vectors where the k'th vector is a vector of logicals
   # indicating class membership to latent class k. This is required for the
   # log-likelihood to be evaluated.
-  w_ik <- lapply(1:K, function(k){
-    return(pred.latent.class == k)
-  })
+  # w_ik <- lapply(1:K, function(k){
+  #   return(pred.latent.class == k)
+  # })
 
-  ll <- llMixtureLogit(y = y, K = K, w_ik = w_ik,
-                       lambda = lambda.tplus1,
-                       xTbeta = xTbeta.tplus1)
-  print(paste("log-likelihood:", ll))
+  ll <- -do.call(sum, optima)
+
+  if(ll < ll.prev)
+  {
+    warning("E-step did not increase log-likelihood!")
+  }
+
+  if(ll > best.ll)
+  {
+    best.ll <- ll
+    best.beta <- beta.tplus1
+    best.lambda <- lambda.tplus1
+  }
 
   if(abs(ll/ll.prev - 1) < tol)
   {
     print("converged")
-    return(list(beta = beta.tplus1,
-                lambda = lambda.tplus1,
+    return(list(beta = best.beta,
+                lambda = best.lambda,
                 delta = delta,
-                ll = ll))
+                ll = best.ll))
   } else
   {
-    return(EM(y = y, start.beta = beta.tplus1, start.lambda = lambda.tplus1,
+    return(EM.logit(y = y, start.beta = beta.tplus1, start.lambda = lambda.tplus1,
               K = K, id.vec = id.vec, ll.prev = ll, X = X,
               method = method, theta.lower = theta.lower,
-              theta.upper = theta.upper, tol = tol))
+              theta.upper = theta.upper, tol = tol, best.beta = best.beta,
+              best.lambda = best.lambda, best.ll = best.ll))
   }
 }
 
@@ -134,16 +165,16 @@ EM <- function(y, start.beta, start.sigma, start.lambda, K, ll.prev, X, id.vec =
 #' This function performs maximum-likelihood estimation via the E-M algorithm to obtain
 #' estimates of regression coefficients in a latent class logistic regression model.
 #'
-#' @importFrom stats model.matrix dnorm pnorm rnorm optim
-#' @importFrom survival survreg
+#' @importFrom stats model.matrix dbinom optim
 #' @importFrom compiler cmpfun
+#'
 #' @param formula a regression formula describing the relationship between the response and the covariates
 #' @param data the data.frame containing the responses and covariates
 #' @param K the number of mixtures (or latent classes)
 #' @param start.beta a list of length K of starting values for each mixture's beta coefficients
 #' @param start.lambda a vector of length K of starting values for the mixing proportions
-#' @param left a number specifying where left-censoring occurred
-#' @param tol a number specifying the tolerance used to determine convergence
+#' @param id the (character) name of the column containing subject IDs
+#' @param tol a numeric tolerance used to determine convergence
 #' @param theta.lower a numeric vector of lower bounds for the theta parameters
 #' @param theta.upper a numeric vector of upper bounds for the theta parameters
 #' @param method a string specifying the optimization routine to be used by optim
@@ -168,28 +199,12 @@ latentclasslogit <- function(formula, data, K = 2, start.beta = NULL,
   response.varname <- all.vars(formula)[1]
   y <- data[[response.varname]]
 
-  # if(is.null(start.beta) || is.null(start.lambda))
-  # {
-  #   print("Using naive logistic regression model to initialize optimization")
-  #   # create a list with K elements, each of which is a d-dimensional numeric vector
-  #   start.beta <- rep(list(numeric(d)), K)
-  #
-  #   naive.model <- glm()
-  #   naive.beta <- naive.model$coefficients
-  #   names(naive.beta) <- colnames(X)
-  #
-  #   start.beta <- lapply(start.beta, function(x){
-  #     return(rnorm(n = d, mean = naive.beta, sd = mean(abs(naive.beta))/2)) # Assign some random starting points
-  #   })
-  #
-  #   start.sigma <- rep(naive.model$scale, K)/(2*K) # Give same sigma to each group
-  # }
-
   id.vec <- data[[id]]
 
-  MLE <- EM(y = y, start.beta = start.beta, start.lambda = start.lambda, K = K,
-            ll.prev = Inf, X = X, id.vec = id.vec,theta.lower = theta.lower,
-            theta.upper = theta.upper, method = method, tol = tol)
+  MLE <- EM.logit(y = y, start.beta = start.beta, start.lambda = start.lambda, K = K,
+            ll.prev = -Inf, X = X, id.vec = id.vec,theta.lower = theta.lower,
+            theta.upper = theta.upper, method = method, tol = tol, best.beta = start.beta,
+            best.lambda = start.lambda, best.ll = -Inf)
 
   return(MLE)
 }
