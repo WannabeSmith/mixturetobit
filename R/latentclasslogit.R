@@ -131,6 +131,13 @@ EM <- function(y, start.beta, start.sigma, start.lambda, K, ll.prev, X, id.vec =
     warning("E-step did not increase log-likelihood!")
   }
 
+  if(ll > best.ll)
+  {
+    best.ll <- ll
+    best.beta <- beta.tplus1
+    best.lambda <- lambda.tplus1
+  }
+
   if(abs(ll/ll.prev - 1) < tol)
   {
     print("converged")
@@ -161,8 +168,8 @@ EM <- function(y, start.beta, start.sigma, start.lambda, K, ll.prev, X, id.vec =
 #' @param K the number of mixtures (or latent classes)
 #' @param start.beta a list of length K of starting values for each mixture's beta coefficients
 #' @param start.lambda a vector of length K of starting values for the mixing proportions
-#' @param left a number specifying where left-censoring occurred
-#' @param tol a number specifying the tolerance used to determine convergence
+#' @param id the (character) name of the column containing subject IDs
+#' @param tol a numeric tolerance used to determine convergence
 #' @param theta.lower a numeric vector of lower bounds for the theta parameters
 #' @param theta.upper a numeric vector of upper bounds for the theta parameters
 #' @param method a string specifying the optimization routine to be used by optim
@@ -186,23 +193,6 @@ latentclasslogit <- function(formula, data, K = 2, start.beta = NULL,
 
   response.varname <- all.vars(formula)[1]
   y <- data[[response.varname]]
-
-  # if(is.null(start.beta) || is.null(start.lambda))
-  # {
-  #   print("Using naive logistic regression model to initialize optimization")
-  #   # create a list with K elements, each of which is a d-dimensional numeric vector
-  #   start.beta <- rep(list(numeric(d)), K)
-  #
-  #   naive.model <- glm()
-  #   naive.beta <- naive.model$coefficients
-  #   names(naive.beta) <- colnames(X)
-  #
-  #   start.beta <- lapply(start.beta, function(x){
-  #     return(rnorm(n = d, mean = naive.beta, sd = mean(abs(naive.beta))/2)) # Assign some random starting points
-  #   })
-  #
-  #   start.sigma <- rep(naive.model$scale, K)/(2*K) # Give same sigma to each group
-  # }
 
   id.vec <- data[[id]]
 
