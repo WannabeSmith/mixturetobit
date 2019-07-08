@@ -19,7 +19,7 @@ llMixtureLogit <- function(y, K, w_ik, lambda, xTbeta)
   return(ll)
 }
 
-Q_k <- function(beta_k, y, X, delta_k, lambda.tplus1_k)
+Q_k.logit <- function(beta_k, y, X, delta_k, lambda.tplus1_k)
 {
   xTbeta_k <- X %*% beta_k
 
@@ -29,9 +29,9 @@ Q_k <- function(beta_k, y, X, delta_k, lambda.tplus1_k)
   return(ll)
 }
 
-Q_k <- cmpfun(Q_k)
+Q_k.logit <- cmpfun(Q_k.logit)
 
-EM <- function(y, start.beta, start.sigma, start.lambda, K, ll.prev, X, id.vec = NULL,
+EM.logit <- function(y, start.beta, start.sigma, start.lambda, K, ll.prev, X, id.vec = NULL,
                theta.lower = NULL, theta.upper = NULL, method = "L-BFGS-B", tol = 1e-5,
                best.beta, best.lambda, best.ll)
 {
@@ -99,7 +99,7 @@ EM <- function(y, start.beta, start.sigma, start.lambda, K, ll.prev, X, id.vec =
   # Doing this inside the EM function so that we don't need
   # to pass parameters that don't change (X, K, delta, ...)
   Js <- lapply(1:K, function(k){
-    J <- function(theta_k){-Q_k(beta_k = theta_k, y = y, X = X,
+    J <- function(theta_k){-Q_k.logit(beta_k = theta_k, y = y, X = X,
                                 delta_k = delta[[k]], lambda.tplus1_k = lambda.tplus1[k])}
     return(cmpfun(J))
   })
@@ -146,13 +146,13 @@ EM <- function(y, start.beta, start.sigma, start.lambda, K, ll.prev, X, id.vec =
   if(abs(ll/ll.prev - 1) < tol)
   {
     print("converged")
-    return(list(beta = beta.tplus1,
-                lambda = lambda.tplus1,
+    return(list(beta = best.beta,
+                lambda = best.lambda,
                 delta = delta,
-                best.ll = best.ll))
+                ll = best.ll))
   } else
   {
-    return(EM(y = y, start.beta = beta.tplus1, start.lambda = lambda.tplus1,
+    return(EM.logit(y = y, start.beta = beta.tplus1, start.lambda = lambda.tplus1,
               K = K, id.vec = id.vec, ll.prev = ll, X = X,
               method = method, theta.lower = theta.lower,
               theta.upper = theta.upper, tol = tol, best.beta = best.beta,
@@ -165,9 +165,9 @@ EM <- function(y, start.beta, start.sigma, start.lambda, K, ll.prev, X, id.vec =
 #' This function performs maximum-likelihood estimation via the E-M algorithm to obtain
 #' estimates of regression coefficients in a latent class logistic regression model.
 #'
-#' @importFrom stats model.matrix dnorm pnorm rnorm optim
-#' @importFrom survival survreg
+#' @importFrom stats model.matrix dbinom optim
 #' @importFrom compiler cmpfun
+#'
 #' @param formula a regression formula describing the relationship between the response and the covariates
 #' @param data the data.frame containing the responses and covariates
 #' @param K the number of mixtures (or latent classes)
@@ -201,7 +201,7 @@ latentclasslogit <- function(formula, data, K = 2, start.beta = NULL,
 
   id.vec <- data[[id]]
 
-  MLE <- EM(y = y, start.beta = start.beta, start.lambda = start.lambda, K = K,
+  MLE <- EM.logit(y = y, start.beta = start.beta, start.lambda = start.lambda, K = K,
             ll.prev = -Inf, X = X, id.vec = id.vec,theta.lower = theta.lower,
             theta.upper = theta.upper, method = method, tol = tol, best.beta = start.beta,
             best.lambda = start.lambda, best.ll = -Inf)

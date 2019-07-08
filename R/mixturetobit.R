@@ -54,7 +54,7 @@ recover.params <- function(theta, K)
   return(list(beta = beta, sigma = sigma))
 }
 
-Q_k <- function(theta_k, y, X, delta_k, lambda.tplus1_k)
+Q_k.tobit <- function(theta_k, y, X, delta_k, lambda.tplus1_k)
 {
   beta <- theta_k[-length(theta_k)]
   sigma <- theta_k[length(theta_k)]
@@ -68,9 +68,9 @@ Q_k <- function(theta_k, y, X, delta_k, lambda.tplus1_k)
   return(ll)
 }
 
-Q_k <- cmpfun(Q_k)
+Q_k.tobit <- cmpfun(Q_k.tobit)
 
-EM <- function(y, start.beta, start.sigma, start.lambda, K, ll.prev, X, id.vec = NULL,
+EM.tobit <- function(y, start.beta, start.sigma, start.lambda, K, ll.prev, X, id.vec = NULL,
                theta.lower = NULL, theta.upper = NULL, method = "L-BFGS-B", tol = 1e-5)
 {
   xTbeta <- lapply(start.beta, function(b){
@@ -112,7 +112,7 @@ EM <- function(y, start.beta, start.sigma, start.lambda, K, ll.prev, X, id.vec =
   # Doing this inside the EM function so that we don't need
   # to pass parameters that don't change (X, K, delta, ...)
   Js <- lapply(1:K, function(k){
-    J <- function(theta_k){-Q_k(theta_k = theta_k, y = y, X = X,
+    J <- function(theta_k){-Q_k.tobit(theta_k = theta_k, y = y, X = X,
                                 delta_k = delta[[k]], lambda.tplus1_k = lambda.tplus1[k])}
     return(cmpfun(J))
   })
@@ -169,7 +169,7 @@ EM <- function(y, start.beta, start.sigma, start.lambda, K, ll.prev, X, id.vec =
                 ll = ll))
   } else
   {
-    return(EM(y = y, start.beta = beta.tplus1, start.sigma = sigma.tplus1,
+    return(EM.tobit(y = y, start.beta = beta.tplus1, start.sigma = sigma.tplus1,
               start.lambda = lambda.tplus1, K = K, id.vec = id.vec, ll.prev = ll, X = X,
               method = method, theta.lower = theta.lower,
               theta.upper = theta.upper, tol = tol))
@@ -241,7 +241,7 @@ mixturetobit <- function(formula, data, K = 2, start.beta = NULL,
 
   id.vec <- data[[id]]
 
-  MLE <- EM(y = y, start.beta = start.beta, start.sigma = start.sigma,
+  MLE <- EM.tobit(y = y, start.beta = start.beta, start.sigma = start.sigma,
             start.lambda = start.lambda, K = K, ll.prev = Inf, X = X, id.vec = id.vec,
             theta.lower = theta.lower, theta.upper = theta.upper, method = method, tol = tol)
 

@@ -19,15 +19,15 @@ latentclasslogit(formula, data, K = 2, start.beta = NULL,
 
 \item{start.lambda}{a vector of length K of starting values for the mixing proportions}
 
-\item{tol}{a number specifying the tolerance used to determine convergence}
+\item{id}{the (character) name of the column containing subject IDs}
+
+\item{tol}{a numeric tolerance used to determine convergence}
 
 \item{theta.lower}{a numeric vector of lower bounds for the theta parameters}
 
 \item{theta.upper}{a numeric vector of upper bounds for the theta parameters}
 
 \item{method}{a string specifying the optimization routine to be used by optim}
-
-\item{left}{a number specifying where left-censoring occurred}
 }
 \value{
 a list containing the following elements:\cr
