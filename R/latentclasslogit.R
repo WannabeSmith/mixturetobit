@@ -33,19 +33,19 @@ Q_k.logit <- cmpfun(Q_k.logit)
 
 EM.logit <- function(y, start.beta, start.sigma, start.lambda, K, ll.prev, X, id.vec = NULL,
                theta.lower = NULL, theta.upper = NULL, method = "L-BFGS-B", tol = 1e-5,
-               best.beta, best.lambda, best.ll)
+               best.beta, best.lambda, best.delta = NULL, best.ll)
 {
   xTbeta <- lapply(start.beta, function(b){
     return(X %*% b)
   })
 
   # f_k(y | theta) computed for all subjects (not all observations. That is next)
-  f.y.theta.comps.subj <- lapply(1:K, function(k){
-    f.y.theta_k <- aggregate(dlogit(y, xTbeta = xTbeta[[k]], log = FALSE),
-                             by = list(id.vec),
-                             function(x){prod(x) * start.lambda[k]})
-    return(f.y.theta_k$x)
-  })
+  # f.y.theta.comps.subj <- lapply(1:K, function(k){
+  #   f.y.theta_k <- aggregate(dlogit(y, xTbeta = xTbeta[[k]], log = FALSE),
+  #                            by = list(id.vec),
+  #                            function(x){prod(x) * start.lambda[k]})
+  #   return(f.y.theta_k$x)
+  # })
 
   # Components of f(y | theta). That is, f(y | theta) = \sum_k^K[\lambda_k \times f_k(y | theta)]
   # This returns for all observations, not all subjects
@@ -58,12 +58,12 @@ EM.logit <- function(y, start.beta, start.sigma, start.lambda, K, ll.prev, X, id
   })
 
   # add these vectors together element-wise to get a single vector of size nrow(X)
-  f.y.theta.subj <- rowSums(do.call(cbind, f.y.theta.comps.subj))
+  # f.y.theta.subj <- rowSums(do.call(cbind, f.y.theta.comps.subj))
   f.y.theta <- rowSums(do.call(cbind, f.y.theta.comps))
 
-  delta.subj <- lapply(1:K, function(k){
-    f.y.theta.comps.subj[[k]] / f.y.theta.subj
-  })
+  # delta.subj <- lapply(1:K, function(k){
+  #   f.y.theta.comps.subj[[k]] / f.y.theta.subj
+  # })
 
   # Estimated probabilities of each observation belonging to group k
   delta <- lapply(1:K, function(k){
@@ -104,13 +104,16 @@ EM.logit <- function(y, start.beta, start.sigma, start.lambda, K, ll.prev, X, id
     return(cmpfun(J))
   })
 
-
-  optimal.params <- lapply(1:K, function(k){
-    optim(theta.init[[k]], Js[[k]], method = "Nelder-Mead")$par
+  optims <- lapply(1:K, function(k){
+    optim(theta.init[[k]], Js[[k]], method = method)
   })
 
-  optima <- lapply(1:K, function(k){
-    optim(theta.init[[k]], Js[[k]], method = "Nelder-Mead")$value
+  optimal.params <- lapply(optims, function(o){
+    return(o$par)
+  })
+
+  optima <- lapply(optims, function(o){
+    return(o$value)
   })
 
   beta.tplus1 <- optimal.params
@@ -141,6 +144,7 @@ EM.logit <- function(y, start.beta, start.sigma, start.lambda, K, ll.prev, X, id
     best.ll <- ll
     best.beta <- beta.tplus1
     best.lambda <- lambda.tplus1
+    best.delta <- delta
   }
 
   if(abs(ll/ll.prev - 1) < tol)
@@ -148,7 +152,7 @@ EM.logit <- function(y, start.beta, start.sigma, start.lambda, K, ll.prev, X, id
     print("converged")
     return(list(beta = best.beta,
                 lambda = best.lambda,
-                delta = delta,
+                delta = best.delta,
                 ll = best.ll))
   } else
   {
@@ -156,7 +160,7 @@ EM.logit <- function(y, start.beta, start.sigma, start.lambda, K, ll.prev, X, id
               K = K, id.vec = id.vec, ll.prev = ll, X = X,
               method = method, theta.lower = theta.lower,
               theta.upper = theta.upper, tol = tol, best.beta = best.beta,
-              best.lambda = best.lambda, best.ll = best.ll))
+              best.lambda = best.lambda, best.delta = best.delta, best.ll = best.ll))
   }
 }
 

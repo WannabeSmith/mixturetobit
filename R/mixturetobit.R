@@ -71,7 +71,8 @@ Q_k.tobit <- function(theta_k, y, X, delta_k, lambda.tplus1_k)
 Q_k.tobit <- cmpfun(Q_k.tobit)
 
 EM.tobit <- function(y, start.beta, start.sigma, start.lambda, K, ll.prev, X, id.vec = NULL,
-               theta.lower = NULL, theta.upper = NULL, method = "L-BFGS-B", tol = 1e-5)
+               theta.lower = NULL, theta.upper = NULL, method = "L-BFGS-B", tol = 1e-5,
+               best.beta, best.sigma, best.lambda, best.delta = NULL, best.ll)
 {
   xTbeta <- lapply(start.beta, function(b){
     return(X %*% b)
@@ -105,8 +106,13 @@ EM.tobit <- function(y, start.beta, start.sigma, start.lambda, K, ll.prev, X, id
 
   theta.init <- prep.theta.optim(beta = start.beta, sigma = start.sigma, K = K)
 
-  print("Trying...")
+  print("Trying beta...")
   print(theta.init)
+
+  print("Previous lambda...")
+  print(start.lambda)
+
+  print(paste("Previous log-likelihood:", ll.prev))
 
   # Create the objective function (the negative of the Q function)
   # Doing this inside the EM function so that we don't need
@@ -117,28 +123,37 @@ EM.tobit <- function(y, start.beta, start.sigma, start.lambda, K, ll.prev, X, id
     return(cmpfun(J))
   })
 
+
   if(method == "Nelder-Mead")
   {
-    optima <- lapply(1:K, function(k){
-      optim(theta.init[[k]], Js[[k]], method = "Nelder-Mead")$par
+    optims <- lapply(1:K, function(k){
+      optim(theta.init[[k]], Js[[k]], method = "Nelder-Mead")
     })
   } else if(method == "L-BFGS-B")
   {
     if(!is.null(theta.lower) && !is.null(theta.upper))
     {
-      optima <- lapply(1:K, function(k){
+      optims <- lapply(1:K, function(k){
         optim(theta.init[[k]], Js[[k]], method = "L-BFGS-B",
-              lower = theta.lower, upper = theta.upper)$par
+              lower = theta.lower, upper = theta.upper)
       })
     } else
     {
-      optima <- lapply(1:K, function(k){
-        optim(theta.init[[k]], Js[[k]], method = "L-BFGS-B")$par
+      optims <- lapply(1:K, function(k){
+        optim(theta.init[[k]], Js[[k]], method = "L-BFGS-B")
       })
     }
   }
 
-  params <- recover.params(optima, K = K)
+  optimal.params <- lapply(optims, function(o){
+    return(o$par)
+  })
+
+  optima <- lapply(optims, function(o){
+    return(o$value)
+  })
+
+  params <- recover.params(optimal.params, K = K)
   beta.tplus1 <- params$beta
   sigma.tplus1 <- params$sigma
 
@@ -152,27 +167,43 @@ EM.tobit <- function(y, start.beta, start.sigma, start.lambda, K, ll.prev, X, id
   # Create list of K vectors where the k'th vector is a vector of logicals
   # indicating class membership to latent class k. This is required for the
   # log-likelihood to be evaluated.
-  w_ik <- lapply(1:K, function(k){
-    return(pred.latent.class == k)
-  })
+  # w_ik <- lapply(1:K, function(k){
+  #   return(pred.latent.class == k)
+  # })
 
-  ll <- llMixtureTobit(y = y, K = K, w_ik = w_ik, lambda = lambda.tplus1, xTbeta = xTbeta.tplus1, sigma = sigma.tplus1)
+  ll <- -do.call(sum, optima)
+
+  if(ll < ll.prev)
+  {
+    warning("E-step did not increase log-likelihood!")
+  }
+
+  if(ll > best.ll)
+  {
+    best.ll <- ll
+    best.beta <- beta.tplus1
+    best.lambda <- lambda.tplus1
+    best.sigma <- sigma.tplus1
+    best.delta <- delta
+  }
+
   print(paste("log-likelihood:", ll))
 
   if(abs(ll/ll.prev - 1) < tol)
   {
     print("converged")
-    return(list(beta = beta.tplus1,
-                sigma = sigma.tplus1,
-                lambda = lambda.tplus1,
-                delta = delta,
-                ll = ll))
+    return(list(beta = best.beta,
+                sigma = best.sigma,
+                lambda = best.lambda,
+                delta = best.delta,
+                ll = best.ll))
   } else
   {
     return(EM.tobit(y = y, start.beta = beta.tplus1, start.sigma = sigma.tplus1,
               start.lambda = lambda.tplus1, K = K, id.vec = id.vec, ll.prev = ll, X = X,
               method = method, theta.lower = theta.lower,
-              theta.upper = theta.upper, tol = tol))
+              theta.upper = theta.upper, tol = tol, best.beta = best.beta, best.sigma = best.sigma,
+              best.lambda = best.lambda, best.delta = best.delta, best.ll = best.ll))
   }
 }
 
@@ -242,8 +273,10 @@ mixturetobit <- function(formula, data, K = 2, start.beta = NULL,
   id.vec <- data[[id]]
 
   MLE <- EM.tobit(y = y, start.beta = start.beta, start.sigma = start.sigma,
-            start.lambda = start.lambda, K = K, ll.prev = Inf, X = X, id.vec = id.vec,
-            theta.lower = theta.lower, theta.upper = theta.upper, method = method, tol = tol)
+            start.lambda = start.lambda, K = K, ll.prev = -Inf, X = X, id.vec = id.vec,
+            theta.lower = theta.lower, theta.upper = theta.upper, method = method, tol = tol,
+            best.beta = start.beta, best.sigma = start.sigma, best.lambda = start.lambda,
+            best.ll = -Inf)
 
   return(MLE)
 }
