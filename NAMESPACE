@@ -2,8 +2,8 @@
 
 export(latentclasslogit)
 export(mixturetobit)
+import(data.table)
 importFrom(compiler,cmpfun)
-importFrom(data.table,data.table)
 importFrom(stats,aggregate)
 importFrom(stats,dbinom)
 importFrom(stats,dnorm)

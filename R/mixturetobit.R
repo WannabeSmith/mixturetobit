@@ -14,11 +14,11 @@ dtobit <- function(y, xTbeta, sigma, left = -1, log = FALSE)
 }
 
 # Log-likelihood of mixture of tobit
-llMixtureTobit <- function(y, K, w_ik, lambda, xTbeta, sigma)
+llMixtureTobit <- function(y, K, w_ik, lambda, xTbeta, sigma, n_i)
 {
   # A list of the K components of the log-likelihood
   ll.components <- lapply(1:K, function(k){
-    sum(w_ik[[k]] * (log(lambda[k]) +
+    sum(w_ik[[k]] * (log(lambda[k])/n_i +
                        dtobit(y = y, xTbeta = xTbeta[[k]],
                               sigma = sigma[k], log = TRUE)))
   })
@@ -54,14 +54,14 @@ recover.params <- function(theta, K)
   return(list(beta = beta, sigma = sigma))
 }
 
-Q_k.tobit <- function(theta_k, y, X, delta_k, lambda.tplus1_k)
+Q_k.tobit <- function(theta_k, y, X, delta_k, lambda.tplus1_k, n_i)
 {
   beta <- theta_k[-length(theta_k)]
   sigma <- theta_k[length(theta_k)]
 
   xTbeta <- X %*% beta
 
-  ll <- sum(delta_k * (log(lambda.tplus1_k) +
+  ll <- sum(delta_k * (log(lambda.tplus1_k)/n_i +
                          dtobit(y = y, xTbeta = xTbeta,
                                 sigma = sigma, log = TRUE)))
 
@@ -70,7 +70,7 @@ Q_k.tobit <- function(theta_k, y, X, delta_k, lambda.tplus1_k)
 
 Q_k.tobit <- cmpfun(Q_k.tobit)
 
-EM.tobit <- function(y, start.beta, start.sigma, start.lambda, K, ll.prev, X, id.vec = NULL,
+EM.tobit <- function(y, start.beta, start.sigma, start.lambda, K, ll.prev, X, id.vec, n_i,
                theta.lower = NULL, theta.upper = NULL, method = "L-BFGS-B", tol = 1e-5,
                best.beta, best.sigma, best.lambda, best.delta = NULL, best.ll)
 {
@@ -119,7 +119,9 @@ EM.tobit <- function(y, start.beta, start.sigma, start.lambda, K, ll.prev, X, id
   # to pass parameters that don't change (X, K, delta, ...)
   Js <- lapply(1:K, function(k){
     J <- function(theta_k){-Q_k.tobit(theta_k = theta_k, y = y, X = X,
-                                delta_k = delta[[k]], lambda.tplus1_k = lambda.tplus1[k])}
+                                delta_k = delta[[k]],
+                                lambda.tplus1_k = lambda.tplus1[k],
+                                n_i = n_i)}
     return(cmpfun(J))
   })
 
@@ -200,7 +202,7 @@ EM.tobit <- function(y, start.beta, start.sigma, start.lambda, K, ll.prev, X, id
   } else
   {
     return(EM.tobit(y = y, start.beta = beta.tplus1, start.sigma = sigma.tplus1,
-              start.lambda = lambda.tplus1, K = K, id.vec = id.vec, ll.prev = ll, X = X,
+              start.lambda = lambda.tplus1, K = K, id.vec = id.vec, n_i = n_i, ll.prev = ll, X = X,
               method = method, theta.lower = theta.lower,
               theta.upper = theta.upper, tol = tol, best.beta = best.beta, best.sigma = best.sigma,
               best.lambda = best.lambda, best.delta = best.delta, best.ll = best.ll))
@@ -215,7 +217,7 @@ EM.tobit <- function(y, start.beta, start.sigma, start.lambda, K, ll.prev, X, id
 #' @importFrom stats model.matrix dnorm pnorm rnorm optim aggregate
 #' @importFrom survival survreg
 #' @importFrom compiler cmpfun
-#' @importFrom data.table data.table
+#' @import data.table
 #' @param formula a regression formula describing the relationship between the response and the covariates
 #' @param data the data.frame containing the responses and covariates
 #' @param K the number of mixtures (or latent classes)
@@ -272,8 +274,10 @@ mixturetobit <- function(formula, data, K = 2, start.beta = NULL,
 
   id.vec <- data[[id]]
 
+  n_i <- data[, n_i := .N, by = eval(id)]$n_i
+
   MLE <- EM.tobit(y = y, start.beta = start.beta, start.sigma = start.sigma,
-            start.lambda = start.lambda, K = K, ll.prev = -Inf, X = X, id.vec = id.vec,
+            start.lambda = start.lambda, K = K, ll.prev = -Inf, X = X, id.vec = id.vec, n_i = n_i,
             theta.lower = theta.lower, theta.upper = theta.upper, method = method, tol = tol,
             best.beta = start.beta, best.sigma = start.sigma, best.lambda = start.lambda,
             best.ll = -Inf)

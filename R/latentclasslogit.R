@@ -19,11 +19,11 @@ llMixtureLogit <- function(y, K, w_ik, lambda, xTbeta)
   return(ll)
 }
 
-Q_k.logit <- function(beta_k, y, X, delta_k, lambda.tplus1_k)
+Q_k.logit <- function(beta_k, y, X, delta_k, lambda.tplus1_k, n_i)
 {
   xTbeta_k <- X %*% beta_k
 
-  ll <- sum(delta_k * (log(lambda.tplus1_k) +
+  ll <- sum(delta_k * (log(lambda.tplus1_k)/n_i +
                          dlogit(y = y, xTbeta = xTbeta_k, log = TRUE)))
 
   return(ll)
@@ -32,7 +32,7 @@ Q_k.logit <- function(beta_k, y, X, delta_k, lambda.tplus1_k)
 Q_k.logit <- cmpfun(Q_k.logit)
 
 EM.logit <- function(y, start.beta, start.sigma, start.lambda, K, ll.prev, X, id.vec = NULL,
-               theta.lower = NULL, theta.upper = NULL, method = "L-BFGS-B", tol = 1e-5,
+               n_i, theta.lower = NULL, theta.upper = NULL, method = "L-BFGS-B", tol = 1e-5,
                best.beta, best.lambda, best.delta = NULL, best.ll)
 {
   xTbeta <- lapply(start.beta, function(b){
@@ -99,8 +99,8 @@ EM.logit <- function(y, start.beta, start.sigma, start.lambda, K, ll.prev, X, id
   # Doing this inside the EM function so that we don't need
   # to pass parameters that don't change (X, K, delta, ...)
   Js <- lapply(1:K, function(k){
-    J <- function(theta_k){-Q_k.logit(beta_k = theta_k, y = y, X = X,
-                                delta_k = delta[[k]], lambda.tplus1_k = lambda.tplus1[k])}
+    J <- function(theta_k){-Q_k.logit(beta_k = theta_k, y = y, X = X, delta_k = delta[[k]],
+                                      lambda.tplus1_k = lambda.tplus1[k], n_i)}
     return(cmpfun(J))
   })
 
@@ -157,7 +157,7 @@ EM.logit <- function(y, start.beta, start.sigma, start.lambda, K, ll.prev, X, id
   } else
   {
     return(EM.logit(y = y, start.beta = beta.tplus1, start.lambda = lambda.tplus1,
-              K = K, id.vec = id.vec, ll.prev = ll, X = X,
+              K = K, id.vec = id.vec, n_i = n_i, ll.prev = ll, X = X,
               method = method, theta.lower = theta.lower,
               theta.upper = theta.upper, tol = tol, best.beta = best.beta,
               best.lambda = best.lambda, best.delta = best.delta, best.ll = best.ll))
@@ -171,7 +171,7 @@ EM.logit <- function(y, start.beta, start.sigma, start.lambda, K, ll.prev, X, id
 #'
 #' @importFrom stats model.matrix dbinom optim
 #' @importFrom compiler cmpfun
-#'
+#' @import data.table
 #' @param formula a regression formula describing the relationship between the response and the covariates
 #' @param data the data.frame containing the responses and covariates
 #' @param K the number of mixtures (or latent classes)
@@ -205,8 +205,10 @@ latentclasslogit <- function(formula, data, K = 2, start.beta = NULL,
 
   id.vec <- data[[id]]
 
+  n_i <- data[, n_i := .N, by = eval(id)]$n_i
+
   MLE <- EM.logit(y = y, start.beta = start.beta, start.lambda = start.lambda, K = K,
-            ll.prev = -Inf, X = X, id.vec = id.vec,theta.lower = theta.lower,
+            ll.prev = -Inf, X = X, id.vec = id.vec, n_i = n_i, theta.lower = theta.lower,
             theta.upper = theta.upper, method = method, tol = tol, best.beta = start.beta,
             best.lambda = start.lambda, best.ll = -Inf)
 
