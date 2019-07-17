@@ -142,7 +142,7 @@ EM.tobit <- function(y, start.beta, start.sigma, start.lambda, K, ll.prev, X, id
     } else
     {
       optims <- lapply(1:K, function(k){
-        optim(theta.init[[k]], Js[[k]], method = "L-BFGS-B")
+        optim(theta.init[[k]], Js[[k]], method = method)
       })
     }
   }
