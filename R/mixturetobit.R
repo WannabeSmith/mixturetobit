@@ -125,26 +125,29 @@ EM.tobit <- function(y, start.beta, start.sigma, start.lambda, K, ll.prev, X, id
     return(cmpfun(J))
   })
 
+  # Use the first optimization routine in the vector provided by the variable "method"
+  current.method <- method[1]
+  # same thing for tolerance
+  current.tol <- tol[1]
 
-  if(method == "Nelder-Mead")
+  print(paste("Using", current.method, "with a tolerance of", current.tol, sep = " "))
+
+  if(current.method == "Nelder-Mead")
   {
     optims <- lapply(1:K, function(k){
       optim(theta.init[[k]], Js[[k]], method = "Nelder-Mead")
     })
-  } else if(method == "L-BFGS-B")
+  } else if(current.method == "L-BFGS-B" && !is.null(theta.lower) && !is.null(theta.upper))
   {
-    if(!is.null(theta.lower) && !is.null(theta.upper))
-    {
-      optims <- lapply(1:K, function(k){
-        optim(theta.init[[k]], Js[[k]], method = "L-BFGS-B",
-              lower = theta.lower, upper = theta.upper)
-      })
-    } else
-    {
-      optims <- lapply(1:K, function(k){
-        optim(theta.init[[k]], Js[[k]], method = method)
-      })
-    }
+    optims <- lapply(1:K, function(k){
+      optim(theta.init[[k]], Js[[k]], method = "L-BFGS-B",
+            lower = theta.lower, upper = theta.upper)
+    })
+  } else
+  {
+    optims <- lapply(1:K, function(k){
+      optim(theta.init[[k]], Js[[k]], method = current.method)
+    })
   }
 
   optimal.params <- lapply(optims, function(o){
@@ -191,22 +194,31 @@ EM.tobit <- function(y, start.beta, start.sigma, start.lambda, K, ll.prev, X, id
 
   print(paste("log-likelihood:", ll))
 
-  if(abs(ll/ll.prev - 1) < tol)
+  if(abs(ll/ll.prev - 1) < current.tol)
   {
-    print("converged")
-    return(list(beta = best.beta,
-                sigma = best.sigma,
-                lambda = best.lambda,
-                delta = best.delta,
-                ll = best.ll))
-  } else
-  {
-    return(EM.tobit(y = y, start.beta = beta.tplus1, start.sigma = sigma.tplus1,
+    if(length(tol) == 1 && length(method) == 1)
+    {
+      print("converged")
+      return(list(beta = best.beta,
+                  sigma = best.sigma,
+                  lambda = best.lambda,
+                  delta = best.delta,
+                  ll = best.ll))
+    } else if (length(tol) > 1 && length(method) > 1)
+    {
+      tol <- tol[-1]
+      method <- method[-1]
+    } else
+    {
+      stop("Must provide tol and method of same length")
+    }
+  }
+
+  return(EM.tobit(y = y, start.beta = beta.tplus1, start.sigma = sigma.tplus1,
               start.lambda = lambda.tplus1, K = K, id.vec = id.vec, n_i = n_i, ll.prev = ll, X = X,
               method = method, theta.lower = theta.lower,
               theta.upper = theta.upper, tol = tol, best.beta = best.beta, best.sigma = best.sigma,
               best.lambda = best.lambda, best.delta = best.delta, best.ll = best.ll))
-  }
 }
 
 #' Perform maximum-likelihood estimation for a mixture of tobit regression models
@@ -226,10 +238,11 @@ EM.tobit <- function(y, start.beta, start.sigma, start.lambda, K, ll.prev, X, id
 #' @param start.lambda a vector of length K of starting values for the mixing proportions
 #' @param id a string specifying the name of the column that identifies subjects
 #' @param left a number specifying where left-censoring occurred
-#' @param tol a number specifying the tolerance used to determine convergence
+#' @param tol a vector of numbers specifying the tolerance(s) used to determine convergence. If length(tol) > 1, the methods used should be supplied as a vector to "method".
 #' @param theta.lower a numeric vector of lower bounds for the theta parameters
 #' @param theta.upper a numeric vector of upper bounds for the theta parameters
-#' @param method a string specifying the optimization routine to be used by optim
+#' @param method a vector of strings specifying the optimization routine(s) to be used by optim. If length(method) > 1, optimization will be performed in succession with the tolerances provided to "tol"
+#' @param beta.starting.sd a numeric for what std deviation to use for starting the EM with random betas
 #' @return a list containing the following elements:\cr
 #' \item{beta}{a list containing the estimated regression coefficients}
 #' \item{sigma}{a vector containing the estimated values of sigma}
@@ -240,11 +253,12 @@ EM.tobit <- function(y, start.beta, start.sigma, start.lambda, K, ll.prev, X, id
 mixturetobit <- function(formula, data, K = 2, start.beta = NULL,
                          start.sigma = NULL, start.lambda = NULL, id = NULL,
                          left = -1, tol = 1e-5, theta.lower = NULL,
-                         theta.upper = NULL, method = "L-BFGS-B")
+                         theta.upper = NULL, method = "L-BFGS-B", beta.starting.sd = 0.5)
 {
-  data <- data.table(data)
-
   stopifnot(K >= 2)
+  stopifnot(length(method) == length(tol))
+
+  data <- data.table(data)
 
   X <- model.matrix(formula, data = data)
   d <- ncol(X) # dimension of beta
@@ -264,10 +278,10 @@ mixturetobit <- function(formula, data, K = 2, start.beta = NULL,
     names(naive.beta) <- colnames(X)
 
     start.beta <- lapply(start.beta, function(x){
-      return(rnorm(n = d, mean = naive.beta, sd = 0.5)) # Assign some random starting points
+      return(rnorm(n = d, mean = naive.beta, sd = beta.starting.sd)) # Assign some random starting points
     })
 
-    start.sigma <- rep(naive.model$scale, K)/(2*K) # Give same sigma to each group
+    start.sigma <- rep(naive.model$scale, K) # Give same sigma to each group
 
     start.lambda <- rep(1/K, K)
   }
