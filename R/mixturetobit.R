@@ -227,7 +227,7 @@ EM.tobit <- function(y, start.beta, start.sigma, start.lambda, K, ll.prev, X, id
 #' estimates of regression coefficients in a mixture of tobit regression models.
 #'
 #' @importFrom stats model.matrix dnorm pnorm rnorm optim aggregate
-#' @importFrom survival survreg
+#' @importFrom survival survreg Surv
 #' @importFrom compiler cmpfun
 #' @import data.table
 #' @param formula a regression formula describing the relationship between the response and the covariates

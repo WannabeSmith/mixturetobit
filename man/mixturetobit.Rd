@@ -7,7 +7,7 @@
 mixturetobit(formula, data, K = 2, start.beta = NULL,
   start.sigma = NULL, start.lambda = NULL, id = NULL, left = -1,
   tol = 1e-05, theta.lower = NULL, theta.upper = NULL,
-  method = "L-BFGS-B")
+  method = "L-BFGS-B", beta.starting.sd = 0.5)
 }
 \arguments{
 \item{formula}{a regression formula describing the relationship between the response and the covariates}
@@ -26,13 +26,15 @@ mixturetobit(formula, data, K = 2, start.beta = NULL,
 
 \item{left}{a number specifying where left-censoring occurred}
 
-\item{tol}{a number specifying the tolerance used to determine convergence}
+\item{tol}{a vector of numbers specifying the tolerance(s) used to determine convergence. If length(tol) > 1, the methods used should be supplied as a vector to "method".}
 
 \item{theta.lower}{a numeric vector of lower bounds for the theta parameters}
 
 \item{theta.upper}{a numeric vector of upper bounds for the theta parameters}
 
-\item{method}{a string specifying the optimization routine to be used by optim}
+\item{method}{a vector of strings specifying the optimization routine(s) to be used by optim. If length(method) > 1, optimization will be performed in succession with the tolerances provided to "tol"}
+
+\item{beta.starting.sd}{a numeric for what std deviation to use for starting the EM with random betas}
 }
 \value{
 a list containing the following elements:\cr
